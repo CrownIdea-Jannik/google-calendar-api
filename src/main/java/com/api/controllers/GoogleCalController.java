@@ -1,19 +1,20 @@
 package com.api.controllers;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.Date;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 import javax.servlet.http.HttpServletRequest;
 
+import com.api.models.EventEntity;
+import com.google.api.services.calendar.Calendar;
+import com.google.api.services.calendar.model.EventDateTime;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -47,6 +48,8 @@ public class GoogleCalController {
 	GoogleAuthorizationCodeFlow flow;
 	Credential credential;
 
+	private Calendar clientCal;
+
 	@Value("${google.client.client-id}")
 	private String clientId;
 	@Value("${google.client.client-secret}")
@@ -77,6 +80,7 @@ public class GoogleCalController {
 			credential = flow.createAndStoreCredential(response, "userID");
 			client = new com.google.api.services.calendar.Calendar.Builder(httpTransport, JSON_FACTORY, credential)
 					.setApplicationName(APPLICATION_NAME).build();
+			this.clientCal = client;
 			Events events = client.events();
 			eventList = events.list("primary").setTimeMin(date1).setTimeMax(date2).execute();
 			message = eventList.getItems().toString();
@@ -90,6 +94,30 @@ public class GoogleCalController {
 
 		System.out.println("cal message:" + message);
 		return new ResponseEntity<>(message, HttpStatus.OK);
+	}
+
+	@RequestMapping(value = "/events", method = RequestMethod.GET, params = {"minDate", "maxDate"})
+	public ResponseEntity<String> getevents(@RequestParam(value = "minDate") String minDate, @RequestParam(value = "maxDate") String maxDate) throws IOException {
+		List<Event> events = clientCal.events().list("primary").setTimeMin(new DateTime(minDate)).setTimeMax(new DateTime(maxDate)).execute().getItems();
+
+
+		System.out.println("cal message:" + events.toString());
+		return new ResponseEntity<String>(events.toString(), HttpStatus.OK);
+	}
+
+	@RequestMapping(value = "/events", method = RequestMethod.POST)
+	public ResponseEntity<String> postevent(@RequestBody EventEntity event) throws IOException {
+		//List<Event> events = clientCal.events().list("primary").setTimeMin(new DateTime("2022-05-23T10:00:00")).setTimeMax(new DateTime("2022-05-27T10:00:00")).execute().getItems();
+
+		Event newEvent = new Event();
+		newEvent.setDescription("Test Description");
+		newEvent.setSummary("Test Summary");
+		newEvent.setStart(new EventDateTime().setDateTime(new DateTime(event.getStart())));
+		newEvent.setEnd(new EventDateTime().setDateTime(new DateTime(event.getEnd())));
+
+		System.out.println(clientCal.events().insert(event.getClientId(), newEvent).execute());
+
+		return new ResponseEntity<>(newEvent.toString(), HttpStatus.OK);
 	}
 
 	public Set<Event> getEvents() throws IOException {
